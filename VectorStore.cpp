@@ -54,6 +54,7 @@ void quickSort(T *arr, int size)
 
 // ----------------- ArrayList Implementation -----------------
 
+// ----------------- ArrayList Implementation -----------------
 template <class T>
 ArrayList<T>::ArrayList(int initCapacity)
 {
@@ -104,10 +105,11 @@ void ArrayList<T>::ensureCapacity(int cap)
 {
     if (cap > capacity)
     {
-        capacity = cap * 2;
+        capacity = capacity * 1.5;
         T *newData = new T[capacity];
         for (int i = 0; i < count; i++)
             *(newData + i) = *(data + i);
+        delete[] data;  // Fix memory leak: delete old array
         data = newData;
     }
 }
@@ -947,7 +949,6 @@ string SinglyLinkedList<char>::toString(string (*item2str)(char &)) const
     return output;
 }
 
-
 template <>
 string SinglyLinkedList<double>::toString(string (*item2str)(double &)) const
 {
@@ -984,9 +985,6 @@ string SinglyLinkedList<double>::toString(string (*item2str)(double &)) const
     return output;
 }
 
-
-
-
 template <class T>
 double SinglyLinkedList<T>::scalarProduct(const SinglyLinkedList &other) const
 {
@@ -1005,10 +1003,6 @@ double SinglyLinkedList<T>::scalarProduct(const SinglyLinkedList &other) const
     cout << endl;
     return output;
 }
-
-
-
-
 
 template <>
 double SinglyLinkedList<float>::scalarProduct(const SinglyLinkedList &other) const
@@ -1164,7 +1158,7 @@ typename SinglyLinkedList<T>::Iterator SinglyLinkedList<T>::begin()
 template <class T>
 typename SinglyLinkedList<T>::Iterator SinglyLinkedList<T>::end()
 {
-    return Iterator(tail);
+    return Iterator(tail->next);
 }
 // ----------------- Iterator of SinglyLinkedList Implementation -----------------
 template <class T>
@@ -1203,18 +1197,24 @@ typename SinglyLinkedList<T>::Node *SinglyLinkedList<T>::Iterator::getCurrent() 
 template <class T>
 typename SinglyLinkedList<T>::Iterator &SinglyLinkedList<T>::Iterator::operator++()
 {
-    if (current->next == nullptr)
+    if (current == nullptr)
         throw out_of_range("Iterator cannot advance past end!");
-    this->current = current->next;
+    if (current != nullptr && current->next == nullptr)
+        current = nullptr;
+    else
+        this->current = current->next;
     return *this;
 }
 template <class T>
 typename SinglyLinkedList<T>::Iterator SinglyLinkedList<T>::Iterator::operator++(int)
 {
-    if (current->next == nullptr)
+    if (current == nullptr)
         throw out_of_range("Iterator cannot advance past end!");
     Iterator temp = *this;
-    this->current = current->next;
+    if (current != nullptr && current->next == nullptr)
+        current = nullptr;
+    else
+        this->current = current->next;
     return temp;
 }
 
