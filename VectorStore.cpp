@@ -51,7 +51,11 @@ void quickSort(T *arr, int size)
     quickSort(arr, right);
     quickSort(arr + right + 1, size - right - 1);
 }
-
+// Double Equation
+bool isDoubleEqual(double a, double b, double epsilon)
+{
+    return a - b <= epsilon && a - b >= -epsilon;
+}
 // ----------------- ArrayList Implementation -----------------
 
 // ----------------- ArrayList Implementation -----------------
@@ -109,7 +113,7 @@ void ArrayList<T>::ensureCapacity(int cap)
         T *newData = new T[capacity];
         for (int i = 0; i < count; i++)
             *(newData + i) = *(data + i);
-        delete[] data;  // Fix memory leak: delete old array
+        delete[] data; // Fix memory leak: delete old array
         data = newData;
     }
 }
@@ -1239,7 +1243,13 @@ VectorStore::VectorStore(int dimension, EmbedFn embeddingFunction)
 
 VectorStore::~VectorStore()
 {
-    // TODO
+    // Clean up all VectorRecord objects and their associated vectors
+    for (int i = 0; i < count; i++)
+    {
+        VectorRecord *record = records.get(i);
+        delete record->vector;  // Delete the SinglyLinkedList<float>
+        delete record;         // Delete the VectorRecord itself
+    }
 }
 
 int VectorStore::size() const
@@ -1277,7 +1287,7 @@ SinglyLinkedList<float> *VectorStore::preprocessing(string rawText)
 void VectorStore::addText(string rawText)
 {
     SinglyLinkedList<float> *processedData = preprocessing(rawText);
-    int newId = (count==0) ? 1 : (getId(count-1)+1);
+    int newId = count + 1;
     int textLength = rawText.length();
     VectorRecord *newRecord = new VectorRecord(newId, rawText, processedData);
     newRecord->rawLength = textLength;
@@ -1337,7 +1347,7 @@ void VectorStore::setEmbeddingFunction(EmbedFn newEmbeddingFunction)
 void VectorStore::forEach(void (*action)(SinglyLinkedList<float> &, int, string &))
 {
     for (int i = 0; i < count; i++)
-        action(getVector(i), records.get(i)->id, records.get(i)->rawText);
+        action(getVector(i), records.get(i)->rawLength, records.get(i)->rawText);
 }
 double VectorStore::cosineSimilarity(const SinglyLinkedList<float> &v1,
                                      const SinglyLinkedList<float> &v2) const
@@ -1371,7 +1381,7 @@ int VectorStore::findNearest(const SinglyLinkedList<float> &query, const string 
         for (int i = 1; i < count; i++)
         {
             double distance = cosineSimilarity(query, getVector(i));
-            if (minDistance > distance)
+            if (minDistance < distance)
             {
                 minDistance = distance;
                 nearestIndex = i;
@@ -1412,33 +1422,73 @@ int VectorStore::findNearest(const SinglyLinkedList<float> &query, const string 
 }
 int *VectorStore::topKNearest(const SinglyLinkedList<float> &query, int k, const string &metric) const
 {
+
     if (!(metric == "cosine" || metric == "euclidean" || metric == "manhattan"))
         throw invalid_metric();
-    if (k <= 0 || k > count - 1)
+    if (k <= 0 || k > count)
         throw invalid_k_value();
+
     int *output = new int[k];
-    double *storage = new double[count];
-    if (metric == "cosine")
+
+    // Create array of index-distance pairs
+    struct IndexDistance
     {
-        for (int i = 0; i < count; i++)
-            storage[i] = cosineSimilarity(query, getVector(i));
-    }
-    else if (metric == "euclidean")
+        int index;
+        double distance;
+    };
+    IndexDistance *pairs = new IndexDistance[count];
+
+    // Calculate distances for all vectors
+    for (int i = 0; i < count; i++)
     {
-        for (int i = 0; i < count; i++)
-            storage[i] = l1Distance(query, getVector(i));
+        pairs[i].index = i;
+        if (metric == "cosine")
+        {
+            pairs[i].distance = cosineSimilarity(query, getVector(i));
+        }
+        else if (metric == "euclidean")
+        {
+            pairs[i].distance = l2Distance(query, getVector(i));
+        }
+        else // manhattan
+        {
+            pairs[i].distance = l1Distance(query, getVector(i));
+        }
     }
-    else
+
+    // Sort by distance (bubble sort for simplicity)
+    for (int i = 0; i < count - 1; i++)
     {
-        for (int i = 0; i < count; i++)
-            storage[i] = l2Distance(query, getVector(i));
+        for (int j = 0; j < count - i - 1; j++)
+        {
+            bool shouldSwap = false;
+            if (metric == "cosine")
+            {
+                // For cosine similarity, higher is better
+                shouldSwap = (pairs[j].distance < pairs[j + 1].distance || (isDoubleEqual(pairs[j].distance, pairs[j + 1].distance, 1e-9) && pairs[j].index > pairs[j + 1].index));
+            }
+            else
+            {
+                // For distance metrics, lower is better
+                shouldSwap = (pairs[j].distance > pairs[j + 1].distance || (isDoubleEqual(pairs[j].distance, pairs[j + 1].distance, 1e-9) && pairs[j].index > pairs[j + 1].index));
+            }
+
+            if (shouldSwap)
+            {
+                IndexDistance temp = pairs[j];
+                pairs[j] = pairs[j + 1];
+                pairs[j + 1] = temp;
+            }
+        }
     }
-    quickSort(storage, count);
-    for (int i = count - 1; i > count - 1 - k; i--)
+
+    // Extract top k indices
+    for (int i = 0; i < k; i++)
     {
-        *(output + count - i) = storage[i];
+        output[i] = pairs[i].index;
     }
-    delete[] storage;
+
+    delete[] pairs;
     return output;
 }
 ArrayList<VectorStore::VectorRecord *> VectorStore::getRecords() const

@@ -11,6 +11,11 @@ void swapInArray(T *arr, int i, int j);
 template <class T>
 void quickSort(T *arr, int size);
 // ==============================
+// Double number comparison
+
+bool isDoubleEqual (double a, double b, double epsilon = 10e-4);
+
+
 // Class ArrayList
 // ==============================
 
@@ -178,6 +183,7 @@ public:
     };
 
     using EmbedFn = SinglyLinkedList<float> *(*)(const string &);
+    // static int nextId;
 
 private:
     // A vector store contains many records, saved as an Array list
